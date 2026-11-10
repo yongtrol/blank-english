@@ -1,0 +1,356 @@
+<title>빈칸 영어</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Noto+Sans+KR:wght@400;500&display=swap">
+<style>
+/* layout: one centered study card, sentence on top, Korean below, controls under it */
+:root {
+  --bg: #eef1f6; --card: #ffffff; --ink: #1c2638; --muted: #5d6a80;
+  --accent: #2f5bd3; --mark: #ffe680; --good: #1f8a52; --bad: #c8412f; --line: #d7dde8;
+  --display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --kr: "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121722; --card: #1b2230; --ink: #e8ecf4; --muted: #9aa6bb;
+  --accent: #7d9cff; --mark: #6b5a12; --good: #4cc38a; --bad: #ff7a66; --line: #2c3547; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121722; --card: #1b2230; --ink: #e8ecf4; --muted: #9aa6bb;
+  --accent: #7d9cff; --mark: #6b5a12; --good: #4cc38a; --bad: #ff7a66; --line: #2c3547; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--kr);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px; }
+main { max-width: 640px; margin: 0 auto; display: grid; gap: 16px; }
+header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+h1 { font-family: var(--display); font-size: 1.25rem; margin: 0; }
+.stats { font-family: var(--display); font-variant-numeric: tabular-nums; color: var(--muted); display: flex; gap: 14px; font-size: .9rem; }
+.stats b { color: var(--ink); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 28px 24px; display: grid; gap: 18px; }
+.en { font-family: var(--display); font-size: clamp(1.25rem, 4.5vw, 1.6rem); line-height: 1.7; margin: 0; text-wrap: balance; }
+.blank { display: inline-block; background: var(--mark); border-radius: 6px; padding: 0 6px; min-width: 3ch; }
+.blank input { font: inherit; color: var(--ink); background: transparent; border: none; border-bottom: 2px solid var(--ink);
+  outline: none; text-align: center; padding: 0; width: var(--w, 6ch); }
+.blank.ok input { color: var(--good); border-color: var(--good); }
+.blank.no input { color: var(--bad); border-color: var(--bad); }
+.blank.shake { animation: shake .3s; }
+@keyframes shake { 25% { transform: translateX(-5px) } 75% { transform: translateX(5px) } }
+.ko { color: var(--muted); font-size: 1.05rem; margin: 0; line-height: 1.6; }
+.ko u { color: var(--ink); text-decoration: underline 2px var(--accent); text-underline-offset: 5px; }
+.hint { font-size: .9rem; color: var(--muted); min-height: 1.4em; margin: 0; }
+.hint.good { color: var(--good); } .hint.bad { color: var(--bad); }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+button { font: 600 .95rem var(--kr); border-radius: 10px; padding: 10px 18px; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--ink); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:focus-visible, .blank input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.keys { font-size: .8rem; color: var(--muted); margin: 0; }
+@media (prefers-reduced-motion: reduce) { .blank.shake { animation: none; } }
+</style>
+
+<main>
+  <header>
+    <h1>빈칸 영어</h1>
+    <div class="stats"><span>정답 <b id="right">0</b></span><span>넘김 <b id="skipped">0</b></span><span>연속 <b id="streak">0</b></span></div>
+  </header>
+  <section class="card" aria-live="polite">
+    <p class="en" id="en"></p>
+    <p class="ko" id="ko"></p>
+    <p class="hint" id="hint"></p>
+    <div class="actions">
+      <button class="primary" id="check">확인</button>
+      <button id="clue">힌트</button>
+      <button id="skip">넘기기</button>
+    </div>
+  </section>
+  <p class="keys">Enter: 확인 · 정답 후 Enter: 다음 문장 · Esc: 넘기기</p>
+</main>
+
+<script>
+// [빈칸 단어] 표시로 정답을 지정
+const DATA = [
+  ["I [usually] drink coffee in the morning.", "나는 [보통] 아침에 커피를 마신다."],
+  ["She is [afraid] of the dark.", "그녀는 어둠을 [무서워한다]."],
+  ["Please [turn] off the lights when you leave.", "나갈 때 불을 [꺼] 주세요."],
+  ["He [decided] to study abroad next year.", "그는 내년에 유학을 가기로 [결심했다]."],
+  ["We need to [solve] this problem quickly.", "우리는 이 문제를 빨리 [해결해야] 한다."],
+  ["The train was [delayed] because of the snow.", "눈 때문에 기차가 [지연되었다]."],
+  ["I'm looking [forward] to seeing you.", "너를 만나기를 [기대하고] 있어."],
+  ["She [apologized] for being late.", "그녀는 늦은 것에 대해 [사과했다]."],
+  ["This book is [worth] reading.", "이 책은 읽을 [가치가] 있다."],
+  ["Can you [explain] it again, please?", "다시 한 번 [설명해] 줄 수 있나요?"],
+  ["I have never been to [Japan] before.", "나는 전에 [일본]에 가 본 적이 없다."],
+  ["It [depends] on the weather.", "그건 날씨에 [달려] 있다."],
+  ["They [agreed] to meet at six.", "그들은 6시에 만나기로 [합의했다]."],
+  ["Don't [forget] to call your mom.", "엄마에게 전화하는 거 [잊지] 마."],
+  ["The movie was so [boring] that I fell asleep.", "영화가 너무 [지루해서] 잠들어 버렸다."],
+  ["I'm not [used] to waking up early.", "나는 일찍 일어나는 것에 [익숙하지] 않다."],
+  ["Let me [know] if you need any help.", "도움이 필요하면 [알려] 줘."],
+  ["He is [responsible] for the project.", "그는 그 프로젝트를 [책임지고] 있다."],
+  ["We ran [out] of milk.", "우유가 다 [떨어졌다]."],
+  ["She speaks English [fluently].", "그녀는 영어를 [유창하게] 말한다."],
+  ["I'll [pick] you up at the station.", "역으로 너를 [데리러] 갈게."],
+  ["The store is [closed] on Sundays.", "그 가게는 일요일에 [문을 닫는다]."],
+  ["Thank you for your [advice].", "[조언해] 줘서 고마워."],
+  ["He [failed] the test, but he didn't give up.", "그는 시험에 [떨어졌지만] 포기하지 않았다."],
+  ["I can't [afford] a new car right now.", "지금은 새 차를 살 [여유가] 없다."],
+  ["Practice makes [perfect].", "연습이 [완벽을] 만든다."],
+  ["Please [fill] in this form.", "이 양식을 [작성해] 주세요."],
+  ["It's [raining] heavily outside.", "밖에 [비가] 많이 오고 있다."],
+  ["You should [take] a break.", "너는 좀 [쉬어야] 해."],
+  ["I [prefer] tea to coffee.", "나는 커피보다 차를 더 [좋아한다]."],
+  ["She [became] a doctor last year.", "그녀는 작년에 의사가 [되었다]."],
+  ["How [long] does it take to get there?", "거기까지 가는 데 [얼마나] 걸려?"],
+  ["Turn [left] at the next corner.", "다음 모퉁이에서 [왼쪽으로] 도세요."],
+  ["I [promise] I won't be late again.", "다시는 늦지 않겠다고 [약속해]."],
+  ["The [weather] is nice today.", "오늘 [날씨가] 좋다."],
+  ["Keep [calm] and carry on.", "[침착하게] 하던 일을 계속해라."],
+  ["He [invited] me to his birthday party.", "그는 나를 생일 파티에 [초대했다]."],
+  ["What do you [usually] do on weekends?", "주말에 [보통] 뭐 해?"],
+  ["Knowledge is [power].", "아는 것이 [힘이다]."],
+  ["I [often] go jogging after work.", "나는 퇴근 후에 [자주] 조깅을 한다."],
+  ["Could you [lend] me your pen?", "펜 좀 [빌려줄] 수 있어?"],
+  ["May I [borrow] your umbrella?", "우산 좀 [빌려도] 될까요?"],
+  ["She [arrived] at the airport an hour early.", "그녀는 공항에 한 시간 일찍 [도착했다]."],
+  ["I [missed] the bus this morning.", "나는 오늘 아침 버스를 [놓쳤다]."],
+  ["He is good [at] playing the guitar.", "그는 기타를 [잘] 친다."],
+  ["We [celebrated] our anniversary yesterday.", "우리는 어제 기념일을 [축하했다]."],
+  ["Please [wait] here for a moment.", "여기서 잠깐 [기다려] 주세요."],
+  ["The soup is too [salty].", "수프가 너무 [짜다]."],
+  ["I [lost] my wallet on the subway.", "지하철에서 지갑을 [잃어버렸다]."],
+  ["Do you [mind] if I open the window?", "창문을 열어도 [괜찮을까요]?"],
+  ["She [graduated] from university last spring.", "그녀는 작년 봄에 대학을 [졸업했다]."],
+  ["This shirt doesn't [fit] me.", "이 셔츠는 나한테 [맞지] 않는다."],
+  ["I'm [tired] of waiting.", "기다리는 데 [지쳤어]."],
+  ["He [noticed] a strange noise outside.", "그는 밖에서 이상한 소리를 [알아차렸다]."],
+  ["Let's [share] the cost of dinner.", "저녁 식사 비용을 [나눠] 내자."],
+  ["The meeting has been [canceled].", "회의가 [취소되었다]."],
+  ["I can't [hear] you very well.", "네 말이 잘 안 [들려]."],
+  ["She [smiled] at me and waved.", "그녀는 나에게 [미소 지으며] 손을 흔들었다."],
+  ["Be [careful] not to slip.", "미끄러지지 않게 [조심해]."],
+  ["I [rarely] eat breakfast.", "나는 아침을 [거의] 먹지 않는다."],
+  ["The [price] of vegetables went up.", "채소 [가격이] 올랐다."],
+  ["He [shouted] my name from across the street.", "그는 길 건너편에서 내 이름을 [외쳤다]."],
+  ["I [feel] much better today.", "오늘은 훨씬 나아진 [기분이야]."],
+  ["We [moved] to a new apartment last month.", "우리는 지난달에 새 아파트로 [이사했다]."],
+  ["Could you [repeat] that, please?", "[다시 한 번 말씀해] 주시겠어요?"],
+  ["The [library] opens at nine.", "[도서관은] 9시에 문을 연다."],
+  ["Don't [worry] about it.", "그건 [걱정하지] 마."],
+  ["She [whispered] something in my ear.", "그녀는 내 귀에 무언가를 [속삭였다]."],
+  ["I'm [proud] of you.", "네가 [자랑스러워]."],
+  ["The [traffic] was terrible this morning.", "오늘 아침 [교통이] 끔찍했다."],
+  ["He [broke] his leg while skiing.", "그는 스키를 타다가 다리가 [부러졌다]."],
+  ["I [hope] you have a great trip.", "즐거운 여행 되길 [바라]."],
+  ["Can I [try] this on?", "이거 [입어 봐도] 돼요?"],
+  ["The kids are [playing] in the park.", "아이들이 공원에서 [놀고] 있다."],
+  ["She [cooks] dinner every evening.", "그녀는 매일 저녁 식사를 [요리한다]."],
+  ["I [believe] you can do it.", "나는 네가 해낼 수 있다고 [믿어]."],
+  ["It's [important] to drink enough water.", "물을 충분히 마시는 것이 [중요하다]."],
+  ["He [lives] next door to me.", "그는 우리 옆집에 [산다]."],
+  ["We [waited] for over an hour.", "우리는 한 시간 넘게 [기다렸다]."],
+  ["The museum is [free] on Mondays.", "그 박물관은 월요일에 [무료다]."],
+  ["I [forgot] my password again.", "비밀번호를 또 [잊어버렸다]."],
+  ["Can you [recommend] a good restaurant?", "괜찮은 식당 [추천해] 줄 수 있어?"],
+  ["She [answered] all the questions correctly.", "그녀는 모든 질문에 정확히 [답했다]."],
+  ["The room is [quiet] and clean.", "그 방은 [조용하고] 깨끗하다."],
+  ["He [changed] his mind at the last minute.", "그는 마지막 순간에 마음을 [바꿨다]."],
+  ["I'll [call] you back later.", "나중에 다시 [전화할게]."],
+  ["My phone [battery] is almost dead.", "휴대폰 [배터리가] 거의 다 됐다."],
+  ["They [built] a new bridge over the river.", "그들은 강 위에 새 다리를 [지었다]."],
+  ["She is [busy] with her homework.", "그녀는 숙제하느라 [바쁘다]."],
+  ["I [need] more time to think.", "생각할 시간이 더 [필요해]."],
+  ["The [concert] starts at eight.", "[콘서트는] 8시에 시작한다."],
+  ["He [lied] to his parents.", "그는 부모님께 [거짓말을 했다]."],
+  ["Please [keep] the door closed.", "문을 닫아 [두세요]."],
+  ["I [enjoy] reading before bed.", "나는 자기 전에 책 읽는 것을 [즐긴다]."],
+  ["She [wore] a red dress to the party.", "그녀는 파티에 빨간 드레스를 [입고] 갔다."],
+  ["Our team [won] the game by one point.", "우리 팀이 1점 차로 경기에서 [이겼다]."],
+  ["The [beach] was crowded with tourists.", "[해변은] 관광객들로 붐볐다."],
+  ["I [washed] the dishes after dinner.", "저녁 식사 후에 [설거지를 했다]."],
+  ["He [ignored] my advice.", "그는 내 조언을 [무시했다]."],
+  ["It's too [expensive] for me.", "그건 나한테 너무 [비싸]."],
+  ["She [hurt] her back lifting boxes.", "그녀는 상자를 들다가 허리를 [다쳤다]."],
+  ["Could you [help] me carry this?", "이거 옮기는 것 좀 [도와줄래]?"],
+  ["I [visited] my grandparents last weekend.", "지난 주말에 조부모님 댁에 [갔다]."],
+  ["The bus [stop] is right over there.", "버스 [정류장은] 바로 저기에 있다."],
+  ["He [spends] too much time on his phone.", "그는 휴대폰에 너무 많은 시간을 [쓴다]."],
+  ["Wash your [hands] before eating.", "먹기 전에 [손을] 씻어라."],
+  ["I'm [sorry] to hear that.", "그 얘기를 들으니 [유감이야]."],
+  ["She [opened] the box carefully.", "그녀는 상자를 조심스럽게 [열었다]."],
+  ["We [stayed] at a small hotel near the station.", "우리는 역 근처 작은 호텔에 [묵었다]."],
+  ["I [remember] the first day we met.", "우리가 처음 만난 날을 [기억해]."],
+  ["The [river] flows into the sea.", "그 [강은] 바다로 흘러든다."],
+  ["He [finished] his work early.", "그는 일을 일찍 [끝냈다]."],
+  ["Please [sign] your name here.", "여기에 [서명해] 주세요."],
+  ["She [laughed] at my joke.", "그녀는 내 농담에 [웃었다]."],
+  ["I [hate] waking up on Monday mornings.", "월요일 아침에 일어나는 게 너무 [싫어]."],
+  ["The [restaurant] was fully booked.", "그 [식당은] 예약이 꽉 찼다."],
+  ["He [saved] money to buy a bike.", "그는 자전거를 사려고 돈을 [모았다]."],
+  ["Let's [meet] in front of the cafe.", "카페 앞에서 [만나자]."],
+  ["I'm [hungry]. Let's eat something.", "[배고파]. 뭐 좀 먹자."],
+  ["She [teaches] math at a high school.", "그녀는 고등학교에서 수학을 [가르친다]."],
+  ["The [floor] is wet, so be careful.", "[바닥이] 젖어 있으니 조심해."],
+  ["I [sent] you an email this morning.", "오늘 아침에 너에게 이메일을 [보냈어]."],
+  ["He [grew] up in a small town.", "그는 작은 마을에서 [자랐다]."],
+  ["Turn [right] at the traffic light.", "신호등에서 [오른쪽으로] 도세요."],
+  ["We [ordered] pizza for dinner.", "우리는 저녁으로 피자를 [시켰다]."],
+  ["The test was [easier] than I expected.", "시험이 예상보다 [쉬웠다]."],
+  ["I [watched] a movie last night.", "어젯밤에 영화를 [봤다]."],
+  ["She [cried] when she heard the news.", "그녀는 그 소식을 듣고 [울었다]."],
+  ["It's [cold] outside, so wear a jacket.", "밖이 [추우니까] 재킷 입어."],
+  ["I [agree] with you completely.", "전적으로 네 말에 [동의해]."],
+  ["He [checked] the map before leaving.", "그는 떠나기 전에 지도를 [확인했다]."],
+  ["The baby is [sleeping] now.", "아기가 지금 [자고] 있다."],
+  ["We [reached] the top of the mountain at noon.", "우리는 정오에 산 정상에 [도착했다]."],
+  ["She [writes] in her diary every night.", "그녀는 매일 밤 일기를 [쓴다]."],
+  ["Please [hurry] or we'll be late.", "[서둘러], 안 그러면 늦을 거야."],
+  ["I [bought] a new laptop yesterday.", "어제 새 노트북을 [샀다]."],
+  ["The [elevator] is out of order.", "[엘리베이터가] 고장 났다."],
+  ["He [stood] up and left the room.", "그는 [일어나서] 방을 나갔다."],
+  ["I [miss] my hometown.", "고향이 [그립다]."],
+  ["The [soup] smells delicious.", "[수프에서] 맛있는 냄새가 난다."],
+  ["He [practices] the piano every day.", "그는 매일 피아노를 [연습한다]."],
+  ["I [guess] you're right.", "네 말이 맞는 [것 같아]."],
+  ["We [planted] trees in the garden.", "우리는 정원에 나무를 [심었다]."],
+  ["The [shop] sells second-hand books.", "그 [가게는] 중고 책을 판다."],
+  ["She [described] the man to the police.", "그녀는 경찰에게 그 남자의 인상착의를 [설명했다]."],
+  ["I [wonder] what he is doing now.", "그가 지금 뭘 하고 있는지 [궁금하다]."],
+  ["Please [lower] your voice.", "목소리를 [낮춰] 주세요."],
+  ["He [caught] a cold last week.", "그는 지난주에 감기에 [걸렸다]."],
+  ["The [news] surprised everyone.", "그 [소식은] 모두를 놀라게 했다."],
+  ["Can you [show] me the way to the station?", "역으로 가는 길 좀 [알려] 줄래요?"],
+  ["The cake [tastes] sweet.", "케이크가 [달다]."],
+  ["He [jumped] into the pool.", "그는 수영장에 [뛰어들었다]."],
+  ["I [understand] how you feel.", "네 기분 [이해해]."],
+  ["We [climbed] the hill to see the sunset.", "우리는 노을을 보려고 언덕에 [올랐다]."],
+  ["She [chose] the blue one.", "그녀는 파란 것을 [골랐다]."],
+  ["My [neighbor] is very friendly.", "내 [이웃은] 아주 친절하다."],
+  ["The [doctor] told me to rest.", "[의사가] 나에게 쉬라고 했다."],
+  ["Let's [grab] a coffee later.", "나중에 커피 [한잔하자]."],
+  ["She [received] a letter from her friend.", "그녀는 친구에게서 편지를 [받았다]."],
+  ["He [drives] to work every day.", "그는 매일 [차로 출근한다]."],
+  ["The [window] is broken.", "[창문이] 깨졌다."],
+  ["I [fell] asleep on the sofa.", "소파에서 [잠들어] 버렸다."],
+  ["She [paid] for my lunch.", "그녀가 내 점심값을 [냈다]."],
+  ["We [talked] for hours on the phone.", "우리는 몇 시간 동안 [통화했다]."],
+  ["The [weekend] went by so fast.", "[주말이] 너무 빨리 지나갔다."],
+  ["I [brushed] my teeth and went to bed.", "이를 [닦고] 잠자리에 들었다."],
+  ["He [carried] the heavy bag for me.", "그는 나 대신 무거운 가방을 [들어] 주었다."],
+  ["Can you [speak] more slowly?", "좀 더 천천히 [말해] 줄래요?"],
+  ["The [flowers] in the garden are blooming.", "정원의 [꽃들이] 피고 있다."],
+  ["I [threw] away the old shoes.", "낡은 신발을 [버렸다]."],
+  ["She is [allergic] to peanuts.", "그녀는 땅콩 [알레르기가] 있다."],
+  ["He [knocked] on the door twice.", "그는 문을 두 번 [두드렸다]."],
+  ["The [answer] is on the next page.", "[답은] 다음 페이지에 있다."],
+  ["We [rented] a car for the trip.", "우리는 여행을 위해 차를 [빌렸다]."],
+  ["I [learned] to swim when I was five.", "나는 다섯 살 때 수영을 [배웠다]."],
+  ["She [cleaned] her room all morning.", "그녀는 오전 내내 방을 [청소했다]."],
+  ["The store [opens] at ten.", "그 가게는 10시에 [문을 연다]."],
+  ["He [kept] the secret for years.", "그는 몇 년 동안 비밀을 [지켰다]."],
+  ["I'm [interested] in history.", "나는 역사에 [관심이] 있다."],
+  ["The [sky] is clear today.", "오늘 [하늘이] 맑다."],
+  ["She [trusted] him completely.", "그녀는 그를 완전히 [믿었다]."],
+  ["Please [bring] your ID card.", "신분증을 [가져오세요]."],
+  ["I [compared] the prices online.", "온라인에서 가격을 [비교했다]."],
+  ["He [exercises] three times a week.", "그는 일주일에 세 번 [운동한다]."],
+  ["We [decorated] the tree together.", "우리는 함께 트리를 [꾸몄다]."],
+  ["The [kitchen] smells like bread.", "[부엌에서] 빵 냄새가 난다."],
+  ["I [hurried] to catch the train.", "기차를 타려고 [서둘렀다]."],
+  ["She [prepared] a speech for the event.", "그녀는 행사를 위해 연설을 [준비했다]."],
+  ["I'm [nervous] about the interview.", "면접 때문에 [긴장돼]."],
+  ["He [repaired] the broken chair.", "그는 부서진 의자를 [고쳤다]."],
+  ["The [moon] is bright tonight.", "오늘 밤 [달이] 밝다."],
+  ["I [wish] I could fly.", "날 수 있으면 [좋겠다]."],
+  ["She [returned] the book to the library.", "그녀는 도서관에 책을 [반납했다]."],
+  ["We [cheered] for our team.", "우리는 우리 팀을 [응원했다]."],
+  ["Don't [touch] the paint. It's still wet.", "페인트 [만지지] 마. 아직 안 말랐어."],
+  ["The [meeting] lasted two hours.", "[회의는] 두 시간 동안 이어졌다."],
+  ["He [hid] the gift under the bed.", "그는 선물을 침대 밑에 [숨겼다]."],
+  ["I [counted] the money twice.", "나는 돈을 두 번 [셌다]."],
+  ["She is the [tallest] girl in her class.", "그녀는 반에서 키가 [가장 크다]."],
+  ["Every cloud has a silver [lining].", "괴로운 일에도 [좋은 면은] 있다."]
+];
+console.assert(new Set(DATA.map(d => d[0])).size === DATA.length, "duplicate sentence");
+
+function parse(s) {
+  const m = s.match(/^(.*)\[(.+?)\](.*)$/);
+  return { before: m[1], answer: m[2], after: m[3] };
+}
+console.assert(parse("a [b] c").answer === "b" && parse("a [b] c").after === " c", "parse");
+
+const norm = s => s.trim().toLowerCase().replace(/[’]/g, "'");
+const $ = id => document.getElementById(id);
+const MAX_CLUES = 2; // 문장당 힌트 횟수
+let order = [], idx = -1, cur, solved = false, clueLen = 0;
+const score = { right: 0, skipped: 0, streak: 0 };
+
+function shuffle() { order = DATA.map((_, i) => i).sort(() => Math.random() - .5); idx = -1; }
+
+function next() {
+  if (++idx >= order.length) shuffle(), idx = 0;
+  const [en, ko] = DATA[order[idx]];
+  cur = parse(en); solved = false; clueLen = 0;
+  const p = $("en"); p.textContent = "";
+  const span = document.createElement("span"); span.className = "blank";
+  const inp = document.createElement("input");
+  inp.id = "answer"; inp.autocomplete = "off"; inp.spellcheck = false; inp.setAttribute("autocapitalize", "off");
+  inp.setAttribute("aria-label", "빈칸에 들어갈 단어");
+  inp.style.setProperty("--w", Math.max(4, cur.answer.length + 1) + "ch");
+  span.append(inp);
+  p.append(cur.before, span, cur.after);
+  // 한국어의 [ ] 부분 = 빈칸 단어의 뜻, 밑줄로 표시
+  const k = ko.match(/^(.*)\[(.+?)\](.*)$/), ul = document.createElement("u");
+  $("ko").textContent = "";
+  if (k) { ul.textContent = k[2]; $("ko").append(k[1], ul, k[3]); } else $("ko").textContent = ko;
+  setHint(`${cur.answer.length}글자`);
+  $("check").textContent = "확인";
+  $("clue").disabled = false; $("clue").textContent = `힌트 (${MAX_CLUES})`;
+  inp.focus();
+}
+
+function setHint(text, cls = "") { const h = $("hint"); h.textContent = text; h.className = "hint " + cls; }
+function render() { for (const k in score) $(k === "skipped" ? "skipped" : k).textContent = score[k]; }
+
+function check() {
+  if (solved) return next();
+  const inp = $("answer"), span = inp.parentElement;
+  if (!inp.value.trim()) return inp.focus();
+  if (norm(inp.value) === norm(cur.answer)) {
+    solved = true; span.className = "blank ok"; inp.readOnly = true;
+    score.right++; score.streak++; render();
+    setHint("정답! Enter를 누르면 다음 문장", "good");
+    $("check").textContent = "다음";
+    $("check").focus();
+  } else {
+    span.className = "blank no shake";
+    setTimeout(() => span.classList.remove("shake"), 300);
+    score.streak = 0; render();
+    setHint("다시 해 보세요", "bad");
+    inp.select();
+  }
+}
+
+function skip() {
+  if (solved) return next();
+  const inp = $("answer");
+  inp.value = cur.answer; inp.readOnly = true; inp.parentElement.className = "blank no";
+  solved = true; score.skipped++; score.streak = 0; render();
+  setHint(`정답은 "${cur.answer}"`, "bad");
+  $("check").textContent = "다음"; $("check").focus();
+}
+
+function clue() {
+  if (solved || clueLen >= MAX_CLUES) return;
+  clueLen = Math.min(clueLen + 1, cur.answer.length);
+  const left = MAX_CLUES - clueLen;
+  $("clue").textContent = `힌트 (${left})`;
+  $("clue").disabled = left === 0;
+  const inp = $("answer");
+  inp.value = cur.answer.slice(0, clueLen); inp.focus();
+  setHint(`${cur.answer.length}글자 · "${cur.answer.slice(0, clueLen)}"로 시작`);
+}
+
+$("check").onclick = check; $("skip").onclick = skip; $("clue").onclick = clue;
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.tagName !== "BUTTON") { e.preventDefault(); check(); }
+  if (e.key === "Escape") skip();
+});
+shuffle(); next();
+</script>
