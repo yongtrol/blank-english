@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>빈칸 영어</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Noto+Sans+KR:wght@400;500&display=swap">
@@ -1089,7 +1091,13 @@ const MAX_CLUES = 2; // 문장당 힌트 횟수
 let order = [], idx = -1, cur, solved = false, clueLen = 0;
 const score = { right: 0, skipped: 0, streak: 0 };
 
-function shuffle() { order = DATA.map((_, i) => i).sort(() => Math.random() - .5); idx = -1; }
+function shuffle() {
+  const last = order[order.length - 1];
+  order = DATA.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  if (order[0] === last) [order[0], order[1]] = [order[1], order[0]]; // 새 바퀴 첫 문장이 방금 문장과 겹치지 않게
+  idx = -1;
+}
 
 function next() {
   if (++idx >= order.length) shuffle(), idx = 0;
@@ -1101,6 +1109,7 @@ function next() {
   inp.id = "answer"; inp.autocomplete = "off"; inp.spellcheck = false; inp.setAttribute("autocapitalize", "off");
   inp.setAttribute("aria-label", "빈칸에 들어갈 단어");
   inp.style.setProperty("--w", Math.max(4, cur.answer.length + 1) + "ch");
+  inp.oninput = () => { if (!solved) span.className = "blank"; }; // 다시 입력하면 빨간색 해제
   span.append(inp);
   p.append(cur.before, span, cur.after);
   // 한국어의 [ ] 부분 = 빈칸 단어의 뜻, 밑줄로 표시
@@ -1114,7 +1123,7 @@ function next() {
 }
 
 function setHint(text, cls = "") { const h = $("hint"); h.textContent = text; h.className = "hint " + cls; }
-function render() { for (const k in score) $(k === "skipped" ? "skipped" : k).textContent = score[k]; }
+function render() { for (const k in score) $(k).textContent = score[k]; }
 
 function check() {
   if (solved) return next();
