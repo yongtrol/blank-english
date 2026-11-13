@@ -1,0 +1,315 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>빈칸 숙제</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=Noto+Sans+KR:wght@400;500&display=swap">
+<style>
+/* 한 페이지 두 모드: 해시 없음 = 선생님(만들기), #데이터 = 학생(풀기) */
+:root {
+  --bg: #eef1f6; --card: #ffffff; --ink: #1c2638; --muted: #5d6a80;
+  --accent: #2f5bd3; --mark: #ffe680; --good: #1f8a52; --bad: #c8412f; --line: #d7dde8;
+  --display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --kr: "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121722; --card: #1b2230; --ink: #e8ecf4; --muted: #9aa6bb;
+  --accent: #7d9cff; --mark: #6b5a12; --good: #4cc38a; --bad: #ff7a66; --line: #2c3547; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121722; --card: #1b2230; --ink: #e8ecf4; --muted: #9aa6bb;
+  --accent: #7d9cff; --mark: #6b5a12; --good: #4cc38a; --bad: #ff7a66; --line: #2c3547; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--kr); margin: 0; padding: 32px 16px; }
+main { max-width: 640px; margin: 0 auto; display: grid; gap: 16px; }
+h1 { font-family: var(--display); font-size: 1.25rem; margin: 0; }
+h2 { font-size: 1rem; margin: 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 14px; }
+label { display: grid; gap: 6px; font-weight: 500; font-size: .95rem; }
+input[type=text], textarea { font: 1rem var(--kr); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; box-sizing: border-box; }
+textarea { min-height: 160px; resize: vertical; line-height: 1.6; }
+.muted { color: var(--muted); font-size: .9rem; margin: 0; }
+.row { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 6px; }
+.words { display: flex; flex-wrap: wrap; gap: 4px; font-family: var(--display); }
+.words button { padding: 4px 8px; font: 1rem var(--display); border-radius: 6px; }
+.words button.on { background: var(--mark); border-color: transparent; }
+.warn { color: var(--bad); font-size: .85rem; margin: 0; }
+.en { font-family: var(--display); font-size: clamp(1.2rem, 4.5vw, 1.5rem); line-height: 1.7; margin: 0; }
+.blank { display: inline-block; background: var(--mark); border-radius: 6px; padding: 0 6px; }
+.blank input { font: inherit; color: var(--ink); background: transparent; border: none; border-bottom: 2px solid var(--ink); outline: none; text-align: center; padding: 0; width: var(--w, 6ch); }
+.blank.ok input { color: var(--good); border-color: var(--good); }
+.blank.no input { color: var(--bad); border-color: var(--bad); }
+.ko { color: var(--muted); font-size: 1.05rem; margin: 0; line-height: 1.6; }
+.ko u { color: var(--ink); text-decoration: underline 2px var(--accent); text-underline-offset: 5px; }
+.hint { font-size: .9rem; color: var(--muted); min-height: 1.4em; margin: 0; }
+.hint.good { color: var(--good); } .hint.bad { color: var(--bad); }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+button { font: 600 .95rem var(--kr); border-radius: 10px; padding: 10px 18px; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--ink); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.progress { font-family: var(--display); color: var(--muted); font-variant-numeric: tabular-nums; }
+.score { font-family: var(--display); font-size: 2rem; font-weight: 700; margin: 0; }
+[hidden] { display: none !important; }
+.stack { display: grid; gap: 8px; }
+ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+</style>
+
+<main>
+  <!-- 선생님: 숙제 만들기 -->
+  <section id="make" hidden>
+    <div class="card">
+      <h1>빈칸 숙제 만들기</h1>
+      <label>숙제 이름 <input type="text" id="title" placeholder="예: 3과 단어 복습"></label>
+      <label>문장 (한 줄에 하나: 영어 | 한국어 해석)
+        <textarea id="src" placeholder="I missed the bus this morning. | 나는 오늘 아침 버스를 놓쳤다.&#10;She is good at cooking. | 그녀는 요리를 잘한다."></textarea>
+      </label>
+      <p class="muted">해석은 빼도 됩니다. 아래에서 빈칸으로 만들 단어를 누르세요.</p>
+      <div id="preview" style="display:grid;gap:12px"></div>
+      <p class="muted" id="status"></p>
+      <div class="actions"><button class="primary" id="build" disabled>학생용 링크 만들기</button></div>
+      <div id="out" hidden class="stack">
+        <input type="text" id="link" readonly aria-label="학생용 링크">
+        <div class="actions"><button id="copy">링크 복사</button><a id="open" target="_blank" rel="noopener">학생 화면 미리보기</a></div>
+        <p class="muted">이 링크를 카톡 등으로 학생에게 보내세요. 학생이 다 풀면 결과를 선생님께 보내는 버튼이 나옵니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 학생: 풀기 -->
+  <section id="solve" hidden>
+    <div class="card" id="intro">
+      <h1 id="hwTitle"></h1>
+      <p class="muted" id="hwInfo"></p>
+      <label>이름 <input type="text" id="name" autocomplete="name"></label>
+      <div class="actions"><button class="primary" id="start">시작</button></div>
+    </div>
+    <div class="card" id="quiz" hidden aria-live="polite">
+      <div class="top"><h2 id="quizTitle"></h2><span class="progress" id="progress"></span></div>
+      <p class="en" id="en"></p>
+      <p class="ko" id="ko"></p>
+      <p class="hint" id="hint"></p>
+      <div class="actions"><button class="primary" id="check">확인</button></div>
+    </div>
+    <div class="card" id="result" hidden>
+      <h1 id="resTitle"></h1>
+      <p class="score" id="resScore"></p>
+      <div id="wrongBox"><h2>틀린 문제</h2><ul id="wrong"></ul></div>
+      <label>선생님께 보낼 결과 <textarea id="report" readonly style="min-height:120px"></textarea></label>
+      <div class="actions"><button class="primary" id="send">결과 보내기</button><button id="again">다시 풀기</button></div>
+      <p class="hint" id="sendHint"></p>
+    </div>
+  </section>
+
+  <p class="muted" id="err" hidden></p>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const norm = s => s.trim().toLowerCase().replace(/[’]/g, "'");
+const BR = /^(.*)\[(.+?)\](.*)$/;
+
+// 숙제 데이터를 압축해서 URL 해시에 담는다 (서버 없음)
+async function pack(obj) {
+  const s = new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+  const b = new Uint8Array(await new Response(s).arrayBuffer());
+  let bin = ""; for (const c of b) bin += String.fromCharCode(c);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+async function unpack(str) {
+  const bin = atob(str.replace(/-/g, "+").replace(/_/g, "/"));
+  const s = new Blob([Uint8Array.from(bin, c => c.charCodeAt(0))]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return JSON.parse(await new Response(s).text());
+}
+// 링크는 누구나 고칠 수 있으니 모양을 검사한다
+function valid(d) {
+  return d && typeof d.t === "string" && Array.isArray(d.q) && d.q.length > 0 && d.q.length <= 200 &&
+    d.q.every(x => Array.isArray(x) && typeof x[0] === "string" && typeof x[1] === "string" && countBlanks(x[0]) === 1);
+}
+const countBlanks = en => (en.match(/\[/g) || []).length === (en.match(/\]/g) || []).length ? (en.match(/\[.+?\]/g) || []).length : -1;
+
+// 영어 문장의 j번째 단어를 빈칸으로 (문장부호는 빈칸 밖에 둔다)
+function blankAt(en, j) {
+  const t = en.replace(/[\[\]]/g, "").trim().split(/\s+/);
+  const m = t[j].match(/^([^\w']*)(.*?)([^\w']*)$/);
+  if (!m[2]) return null;
+  t[j] = m[1] + "[" + m[2] + "]" + m[3];
+  return t.join(" ");
+}
+function appendKo(el, ko) {
+  el.textContent = "";
+  const k = ko.match(BR);
+  if (!k) return el.textContent = ko;
+  const u = document.createElement("u"); u.textContent = k[2];
+  el.append(k[1], u, k[3]);
+}
+
+// ---------- 선생님 ----------
+const DRAFT = "hw-draft";
+function lines() {
+  return $("src").value.split("\n").map((raw, i) => {
+    const [en = "", ...rest] = raw.split("|");
+    return { i, en: en.trim(), ko: rest.join("|").trim() };
+  }).filter(l => l.en);
+}
+function setLine(i, en, ko) {
+  const raw = $("src").value.split("\n");
+  raw[i] = ko ? `${en} | ${ko}` : en;
+  $("src").value = raw.join("\n");
+  refresh();
+}
+function refresh() {
+  try { localStorage.setItem(DRAFT, JSON.stringify({ t: $("title").value, s: $("src").value })); } catch {}
+  const ls = lines(), pv = $("preview");
+  pv.textContent = "";
+  let missing = 0;
+  for (const l of ls) {
+    const row = document.createElement("div"); row.className = "row";
+    const words = document.createElement("div"); words.className = "words";
+    let inB = false;
+    l.en.split(/\s+/).forEach((tok, j) => {
+      if (tok.includes("[")) inB = true;
+      const b = document.createElement("button");
+      b.textContent = tok.replace(/[\[\]]/g, "");
+      b.className = inB ? "on" : "";
+      b.setAttribute("aria-pressed", inB);
+      const on = inB;
+      b.onclick = () => {
+        const next = on ? l.en.replace(/[\[\]]/g, "") : blankAt(l.en, j);
+        if (next) setLine(l.i, next, l.ko);
+      };
+      words.append(b);
+      if (tok.includes("]")) inB = false;
+    });
+    row.append(words);
+    if (l.ko) { const ko = document.createElement("p"); ko.className = "ko"; appendKo(ko, l.ko); row.append(ko); }
+    if (countBlanks(l.en) !== 1) {
+      missing++;
+      const w = document.createElement("p"); w.className = "warn";
+      w.textContent = countBlanks(l.en) === 0 ? "빈칸으로 만들 단어를 누르세요" : "빈칸은 문장마다 하나만 됩니다";
+      row.append(w);
+    }
+    pv.append(row);
+  }
+  $("status").textContent = ls.length ? `문장 ${ls.length}개` + (missing ? ` · 빈칸 안 정한 문장 ${missing}개` : " · 준비 완료") : "";
+  $("build").disabled = !ls.length || missing > 0;
+  $("out").hidden = true;
+}
+async function build() {
+  const data = { t: $("title").value.trim() || "빈칸 숙제", q: lines().map(l => [l.en, l.ko]) };
+  const url = location.href.split("#")[0] + "#" + await pack(data);
+  $("link").value = url; $("open").href = url; $("out").hidden = false;
+  $("link").select();
+}
+
+function initMake() {
+  $("make").hidden = false;
+  try { const d = JSON.parse(localStorage.getItem(DRAFT)); if (d) { $("title").value = d.t || ""; $("src").value = d.s || ""; } } catch {}
+  $("src").oninput = $("title").oninput = refresh;
+  $("build").onclick = build;
+  $("copy").onclick = async () => {
+    try { await navigator.clipboard.writeText($("link").value); $("copy").textContent = "복사됨"; }
+    catch { $("link").select(); $("copy").textContent = "Ctrl+C로 복사하세요"; }
+    setTimeout(() => $("copy").textContent = "링크 복사", 1500);
+  };
+  refresh();
+}
+
+// ---------- 학생 ----------
+let hw, idx, answers, solved;
+function initSolve(data) {
+  hw = data;
+  $("solve").hidden = false;
+  document.title = hw.t;
+  $("hwTitle").textContent = $("quizTitle").textContent = hw.t;
+  $("hwInfo").textContent = `문장 ${hw.q.length}개 · 문제마다 한 번씩 답할 수 있어요.`;
+  $("start").onclick = start;
+  $("name").onkeydown = e => { if (e.key === "Enter") start(); };
+  $("check").onclick = check;
+  $("again").onclick = start;
+  $("send").onclick = send;
+  $("name").focus();
+}
+function start() {
+  if (!$("name").value.trim()) return $("name").focus();
+  idx = -1; answers = [];
+  $("intro").hidden = $("result").hidden = true; $("quiz").hidden = false;
+  next();
+}
+function next() {
+  if (++idx >= hw.q.length) return finish();
+  const [en, ko] = hw.q[idx], m = en.match(BR);
+  solved = false;
+  $("progress").textContent = `${idx + 1} / ${hw.q.length}`;
+  const p = $("en"); p.textContent = "";
+  const span = document.createElement("span"); span.className = "blank";
+  const inp = document.createElement("input");
+  inp.id = "answer"; inp.autocomplete = "off"; inp.spellcheck = false; inp.setAttribute("autocapitalize", "off");
+  inp.setAttribute("aria-label", "빈칸에 들어갈 단어");
+  inp.style.setProperty("--w", Math.max(4, m[2].length + 1) + "ch");
+  inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); check(); } };
+  span.append(inp); p.append(m[1], span, m[3]);
+  appendKo($("ko"), ko);
+  setHint(`${m[2].length}글자`);
+  $("check").textContent = "확인";
+  inp.focus();
+}
+function setHint(t, cls = "") { $("hint").textContent = t; $("hint").className = "hint " + cls; }
+function check() {
+  if (solved) return next();
+  const inp = $("answer"), ans = hw.q[idx][0].match(BR)[2];
+  if (!inp.value.trim()) return inp.focus();
+  const ok = norm(inp.value) === norm(ans);
+  answers.push({ n: idx + 1, ok, got: inp.value.trim(), ans });
+  solved = true; inp.readOnly = true;
+  inp.parentElement.className = "blank " + (ok ? "ok" : "no");
+  setHint(ok ? "정답!" : `정답은 "${ans}"`, ok ? "good" : "bad");
+  $("check").textContent = idx + 1 < hw.q.length ? "다음" : "결과 보기";
+  $("check").focus();
+}
+function finish() {
+  const name = $("name").value.trim(), right = answers.filter(a => a.ok).length, total = hw.q.length;
+  const wrong = answers.filter(a => !a.ok);
+  $("quiz").hidden = true; $("result").hidden = false;
+  $("resTitle").textContent = `${name} 님의 결과`;
+  $("resScore").textContent = `${right} / ${total}`;
+  $("wrongBox").hidden = !wrong.length;
+  $("wrong").textContent = "";
+  for (const w of wrong) {
+    const li = document.createElement("li");
+    li.textContent = `${w.n}번: ${hw.q[w.n - 1][0].replace(/[\[\]]/g, "")} (적은 답: ${w.got})`;
+    $("wrong").append(li);
+  }
+  $("report").value = [
+    `[빈칸 숙제] ${hw.t}`,
+    `이름: ${name}`,
+    `점수: ${right}/${total} (${Math.round(right / total * 100)}%)`,
+    wrong.length ? `틀린 문제: ${wrong.map(w => `${w.n}번 ${w.ans}(${w.got})`).join(", ")}` : "틀린 문제: 없음",
+    `제출: ${new Date().toLocaleString("ko-KR")}`,
+  ].join("\n");
+  $("sendHint").textContent = "";
+}
+async function send() {
+  const text = $("report").value;
+  if (navigator.share) {
+    try { return await navigator.share({ text }); } catch (e) { if (e.name === "AbortError") return; }
+  }
+  try { await navigator.clipboard.writeText(text); $("sendHint").textContent = "복사했어요. 카톡에 붙여 넣어 선생님께 보내세요."; }
+  catch { $("report").select(); $("sendHint").textContent = "위 결과를 길게 눌러 복사해서 선생님께 보내세요."; }
+}
+
+// ---------- 시작 ----------
+async function boot() {
+  const h = location.hash.slice(1);
+  if (!h) return initMake();
+  try { const d = await unpack(h); if (!valid(d)) throw 0; initSolve(d); }
+  catch { $("err").hidden = false; $("err").textContent = "숙제 링크가 잘못되었어요. 선생님께 링크를 다시 받아 주세요."; }
+}
+addEventListener("hashchange", () => location.reload());
+boot();
+
+// self-check
+console.assert(blankAt("I missed the bus.", 3) === "I missed the [bus].", "blankAt punct");
+console.assert(blankAt("I [missed] the bus.", 0) === "[I] missed the bus.", "blankAt reblank");
+console.assert(countBlanks("a [b] c") === 1 && countBlanks("a b") === 0 && countBlanks("[a] [b]") === 2 && countBlanks("a [b c") === -1, "countBlanks");
+pack({ t: "한글 ✓", q: [["I [go].", "나는 [간다]."]] }).then(unpack).then(d => console.assert(d.t === "한글 ✓" && valid(d), "pack roundtrip"));
+</script>
