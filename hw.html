@@ -63,9 +63,10 @@ ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
       <label>문장 (한 줄에 하나: 영어 | 한국어 해석)
         <textarea id="src" placeholder="I missed the bus this morning. | 나는 오늘 아침 버스를 놓쳤다.&#10;She is good at cooking. | 그녀는 요리를 잘한다."></textarea>
       </label>
-      <p class="muted">해석은 빼도 됩니다. 아래에서 빈칸으로 만들 단어를 누르세요.</p>
+      <p class="muted">해석을 빼면 자동으로 채워집니다. 아래에서 빈칸으로 만들 단어를 누르세요. 링크를 만들 때 문법과 철자를 검사합니다 (문장은 LanguageTool, MyMemory로 전송됩니다).</p>
       <div id="preview" style="display:grid;gap:12px"></div>
       <p class="muted" id="status"></p>
+      <p class="warn" id="note"></p>
       <div class="actions"><button class="primary" id="build" disabled>학생용 링크 만들기</button></div>
       <div id="out" hidden class="stack">
         <input type="text" id="link" readonly aria-label="학생용 링크">
@@ -161,7 +162,7 @@ function refresh() {
   try { localStorage.setItem(DRAFT, JSON.stringify({ t: $("title").value, s: $("src").value })); } catch {}
   const ls = lines(), pv = $("preview");
   pv.textContent = "";
-  let missing = 0;
+  let missing = 0, flagged = 0;
   for (const l of ls) {
     const row = document.createElement("div"); row.className = "row";
     const words = document.createElement("div"); words.className = "words";
@@ -182,20 +183,67 @@ function refresh() {
     });
     row.append(words);
     if (l.ko) { const ko = document.createElement("p"); ko.className = "ko"; appendKo(ko, l.ko); row.append(ko); }
+    const warn = t => { const w = document.createElement("p"); w.className = "warn"; w.textContent = t; row.append(w); };
     if (countBlanks(l.en) !== 1) {
       missing++;
-      const w = document.createElement("p"); w.className = "warn";
-      w.textContent = countBlanks(l.en) === 0 ? "빈칸으로 만들 단어를 누르세요" : "빈칸은 문장마다 하나만 됩니다";
-      row.append(w);
+      warn(countBlanks(l.en) === 0 ? "빈칸으로 만들 단어를 누르세요" : "빈칸은 문장마다 하나만 됩니다");
     }
+    const found = issues.get(plain(l.en)) || [];
+    if (found.length) flagged++;
+    for (const f of found) warn(`${f.type}: "${f.word}"` + (f.fix.length ? ` → ${f.fix.join(" / ")}` : "") + " 고쳐서 다시 입력하세요");
     pv.append(row);
   }
-  $("status").textContent = ls.length ? `문장 ${ls.length}개` + (missing ? ` · 빈칸 안 정한 문장 ${missing}개` : " · 준비 완료") : "";
-  $("build").disabled = !ls.length || missing > 0;
+  $("status").textContent = !ls.length ? "" : `문장 ${ls.length}개` +
+    (missing ? ` · 빈칸 안 정한 문장 ${missing}개` : "") + (flagged ? ` · 고칠 문장 ${flagged}개` : "") + (missing || flagged ? "" : " · 준비 완료");
+  $("build").disabled = !ls.length || missing > 0 || flagged > 0;
   $("out").hidden = true;
 }
+// 문법 검사(LanguageTool)와 자동 해석(MyMemory): 둘 다 무료·키 없음, 브라우저에서 바로 호출
+const plain = en => en.replace(/[\[\]]/g, "");
+const issues = new Map(); // 검사한 문장(빈칸 표시 뺀 것) → 문제 목록. 문장을 고치면 키가 바뀌어 다시 검사됨
+const BLOCK = { grammar: "문법", misspelling: "철자", duplication: "중복된 단어", typographical: "표기" };
+
+async function grammar(ls) {
+  const todo = [...new Set(ls.map(l => plain(l.en)))].filter(t => !issues.has(t));
+  if (!todo.length) return;
+  const r = await fetch("https://api.languagetool.org/v2/check", { method: "POST", body: new URLSearchParams({ text: todo.join("\n"), language: "en-US" }) });
+  if (!r.ok) throw new Error(r.status);
+  const { matches } = await r.json();
+  let pos = 0; const starts = todo.map(t => (pos += t.length + 1) - t.length - 1);
+  const found = todo.map(() => []);
+  for (const m of matches) {
+    if (!BLOCK[m.rule.issueType]) continue; // 문체 제안 등은 무시
+    const k = starts.findLastIndex(s => s <= m.offset), word = todo[k].substr(m.offset - starts[k], m.length);
+    // shortcut: 대문자로 시작하는 단어(이름·지명)는 철자 오류로 안 봄. 그래서 "Thiss" 같은 문장 첫 단어 오타는 놓침. 사용자 사전이 필요해지면 바꿀 것
+    if (m.rule.issueType === "misspelling" && /^[A-Z]/.test(word)) continue;
+    found[k].push({ word, type: BLOCK[m.rule.issueType], fix: m.replacements.slice(0, 3).map(x => x.value) });
+  }
+  todo.forEach((t, k) => issues.set(t, found[k]));
+}
+
+async function translate(text) {
+  const r = await fetch("https://api.mymemory.translated.net/get?langpair=en|ko&q=" + encodeURIComponent(text));
+  const d = await r.json();
+  if (d.responseStatus != 200) throw new Error(d.responseDetails); // 하루 무료 한도 초과 등
+  const ko = new DOMParser().parseFromString(d.responseData.translatedText, "text/html").documentElement.textContent;
+  return ko.replace(/[|\n\[\]]/g, " ").trim(); // 줄 형식을 깨는 문자 제거
+}
+
 async function build() {
-  const data = { t: $("title").value.trim() || "빈칸 숙제", q: lines().map(l => [l.en, l.ko]) };
+  $("build").disabled = true; $("note").textContent = "";
+  const todo = lines().filter(l => !l.ko);
+  for (const [n, l] of todo.entries()) {
+    $("status").textContent = `해석 만드는 중 ${n + 1} / ${todo.length}`;
+    try { setLine(l.i, l.en, await translate(plain(l.en))); }
+    catch { $("note").textContent = "자동 해석에 실패해서 일부 문장은 해석 없이 만들어요 (무료 사용량 초과일 수 있어요)."; break; }
+  }
+  $("status").textContent = "문법 검사 중…";
+  let checked = true;
+  try { await grammar(lines()); } catch { checked = false; }
+  refresh();
+  if ($("build").disabled) return $("src").focus(); // 고칠 문장이 있으면 링크를 만들지 않음
+  if (!checked) $("note").textContent = "문법 검사 서비스에 연결하지 못해 검사 없이 만들었어요.";
+  const data ={ t: $("title").value.trim() || "빈칸 숙제", q: lines().map(l => [l.en, l.ko]) };
   const url = location.href.split("#")[0] + "#" + await pack(data);
   $("link").value = url; $("open").href = url; $("out").hidden = false;
   $("link").select();
